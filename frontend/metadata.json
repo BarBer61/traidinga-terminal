@@ -1,0 +1,7 @@
+{
+  "name": "TraidingA PRO",
+  "description": "Элитная торговая среда с ИИ-аналитикой стратегий, автоматизированным журналом и новостным прогнозированием.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
