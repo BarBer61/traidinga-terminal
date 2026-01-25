@@ -4,12 +4,19 @@
   "description": "Backend for TraidingA Terminal",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "ISC",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^16.4.5",
-    "node-fetch": "^2.7.0",
     "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
   }
 }
