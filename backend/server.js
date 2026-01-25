@@ -21,14 +21,15 @@ const MESSAGE_TYPES = {
     ERROR: 'ERROR',
 };
 
+// Проверка наличия ключей API
 if (!FINNHUB_API_KEY || !GEMINI_API_KEY) {
     console.error("CRITICAL ERROR: API keys not found in environment variables!");
-    process.exit(1);
+    process.exit(1); // Завершаем процесс, если ключей нет
 }
 
 // --- ИНИЦИАЛИЗАЦИЯ КЛИЕНТОВ API ---
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-// ИЗМЕНЕНО: Используем последнюю, быструю и надежную модель
+// ИСПРАВЛЕНО: Используем последнюю, быструю и надежную модель, чтобы избежать ошибок с версией API
 const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 // --- ХРАНИЛИЩЕ ДАННЫХ В ПАМЯТИ ---
@@ -37,6 +38,11 @@ let marketPulse = { state: 'СТАБИЛЬНО', impulse: 20, description: 'Сб
 const newsAlertTimers = new Map();
 
 // --- УТИЛИТЫ ---
+/**
+ * Обертка для асинхронных функций для перехвата и логирования ошибок.
+ * @param {Function} fn - Асинхронная функция для выполнения.
+ * @param {string} context - Контекст для сообщения об ошибке.
+ */
 const withErrorHandling = (fn, context) => async (...args) => {
     try {
         await fn(...args);
@@ -49,7 +55,9 @@ const withErrorHandling = (fn, context) => async (...args) => {
 const fetchEconomicCalendar = withErrorHandling(async () => {
     const today = new Date().toISOString().slice(0, 10);
     const response = await fetch(`https://finnhub.io/api/v1/calendar/economic?from=${today}&to=${today}&token=${FINNHUB_API_KEY}`);
-    if (!response.ok) throw new Error(`Finnhub API responded with status ${response.status}`);
+    if (!response.ok) {
+        throw new Error(`Finnhub API responded with status ${response.status}`);
+    }
     const data = await response.json();
     
     if (data.economicCalendar) {
@@ -66,6 +74,7 @@ const fetchMarketPulse = withErrorHandling(async () => {
     const result = await geminiModel.generateContent(prompt);
     const responseText = result.response.text();
     
+    // Более надежный парсинг JSON из ответа
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
         marketPulse = JSON.parse(jsonMatch[0]);
@@ -75,6 +84,7 @@ const fetchMarketPulse = withErrorHandling(async () => {
         console.warn('[WARN] Gemini did not return a valid JSON for market pulse.');
     }
 }, 'fetchMarketPulse');
+
 
 // --- ЛОГИКА ОПОВЕЩЕНИЙ ---
 function setupNewsAlerts() {
@@ -86,11 +96,14 @@ function setupNewsAlerts() {
         .filter(event => (event.impact === 'high' || event.impact === 'medium') && event.time)
         .forEach(event => {
             const eventTime = new Date(event.time).getTime();
-            const alertTime = eventTime - 10 * 60 * 1000;
+            const alertTime = eventTime - 10 * 60 * 1000; // За 10 минут
 
             if (alertTime > now) {
                 const timeoutId = setTimeout(() => {
-                    broadcast({ type: MESSAGE_TYPES.NEWS_ALERT, payload: { ...event, countdown: 600 } });
+                    broadcast({
+                        type: MESSAGE_TYPES.NEWS_ALERT,
+                        payload: { ...event, countdown: 600 } // 10 минут в секундах
+                    });
                     console.log(`[ALERT] Sent news alert: ${event.event}`);
                 }, alertTime - now);
                 newsAlertTimers.set(event.id, timeoutId);
@@ -105,13 +118,16 @@ const wss = new WebSocket.Server({ server });
 function broadcast(data) {
     const jsonData = JSON.stringify(data);
     wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) client.send(jsonData);
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(jsonData);
+        }
     });
 }
 
 wss.on('connection', ws => {
     console.log('[INFO] Client connected.');
     
+    // Отправляем текущие данные новому клиенту
     ws.send(JSON.stringify({ type: MESSAGE_TYPES.ECONOMIC_CALENDAR_UPDATE, payload: economicCalendar }));
     ws.send(JSON.stringify({ type: MESSAGE_TYPES.MARKET_PULSE_UPDATE, payload: marketPulse }));
 
@@ -131,16 +147,20 @@ wss.on('connection', ws => {
         }
     });
 
-    ws.on('close', () => console.log('[INFO] Client disconnected.'));
+    ws.on('close', () => {
+        console.log('[INFO] Client disconnected.');
+    });
 });
 
 // --- ЗАПУСК СЕРВЕРА И ПЕРИОДИЧЕСКИХ ЗАДАЧ ---
 server.listen(PORT, () => {
     console.log(`[OK] Backend server started on port ${PORT}`);
     
+    // Первоначальная загрузка данных
     fetchEconomicCalendar();
     fetchMarketPulse();
 
-    setInterval(fetchEconomicCalendar, 60 * 60 * 1000);
-    setInterval(fetchMarketPulse, 2 * 60 * 1000);
+    // Обновление по расписанию
+    setInterval(fetchEconomicCalendar, 60 * 60 * 1000); // Каждый час
+    setInterval(fetchMarketPulse, 2 * 60 * 1000);      // Каждые 2 минуты
 });
