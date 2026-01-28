@@ -29,7 +29,8 @@ if (!FINNHUB_API_KEY || !GEMINI_API_KEY) {
 
 // --- ИНИЦИАЛИЗАЦИЯ КЛИЕНТОВ API ---
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const geminiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
 
 // --- ХРАНИЛИЩЕ ДАННЫХ В ПАМЯТИ ---
 let economicCalendar = [];
