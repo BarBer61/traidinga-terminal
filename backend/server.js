@@ -8,7 +8,7 @@ const WebSocket = require('ws');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
-const PORT = process.env.PORT || 8080;
+// Убираем константу PORT, так как Render предоставляет ее напрямую
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -21,15 +21,14 @@ const MESSAGE_TYPES = {
     ERROR: 'ERROR',
 };
 
-// Проверка наличия ключей API
+// Проверка наличия ключей API при старте
 if (!FINNHUB_API_KEY || !GEMINI_API_KEY) {
-    console.error("CRITICAL ERROR: API keys not found in environment variables!");
-    process.exit(1); // Завершаем процесс, если ключей нет
+    console.error("CRITICAL ERROR: API keys not found in initial environment variables!");
+    // Не выходим из процесса сразу, дадим серверу шанс запуститься и проверить переменные Render
 }
 
 // --- ИНИЦИАЛИЗАЦИЯ КЛИЕНТОВ API ---
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-// ИСПРАВЛЕНО: Используем последнюю, быструю и надежную модель, чтобы избежать ошибок с версией API
 const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 // --- ХРАНИЛИЩЕ ДАННЫХ В ПАМЯТИ ---
@@ -38,11 +37,6 @@ let marketPulse = { state: 'СТАБИЛЬНО', impulse: 20, description: 'Сб
 const newsAlertTimers = new Map();
 
 // --- УТИЛИТЫ ---
-/**
- * Обертка для асинхронных функций для перехвата и логирования ошибок.
- * @param {Function} fn - Асинхронная функция для выполнения.
- * @param {string} context - Контекст для сообщения об ошибке.
- */
 const withErrorHandling = (fn, context) => async (...args) => {
     try {
         await fn(...args);
@@ -74,7 +68,6 @@ const fetchMarketPulse = withErrorHandling(async () => {
     const result = await geminiModel.generateContent(prompt);
     const responseText = result.response.text();
     
-    // Более надежный парсинг JSON из ответа
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
         marketPulse = JSON.parse(jsonMatch[0]);
@@ -127,7 +120,6 @@ function broadcast(data) {
 wss.on('connection', ws => {
     console.log('[INFO] Client connected.');
     
-    // Отправляем текущие данные новому клиенту
     ws.send(JSON.stringify({ type: MESSAGE_TYPES.ECONOMIC_CALENDAR_UPDATE, payload: economicCalendar }));
     ws.send(JSON.stringify({ type: MESSAGE_TYPES.MARKET_PULSE_UPDATE, payload: marketPulse }));
 
@@ -153,9 +145,21 @@ wss.on('connection', ws => {
 });
 
 // --- ЗАПУСК СЕРВЕРА И ПЕРИОДИЧЕСКИХ ЗАДАЧ ---
-server.listen(PORT, () => {
-    console.log(`[OK] Backend server started on port ${PORT}`);
+// ИСПРАВЛЕНО: Этот блок теперь правильно работает с Render
+server.listen(process.env.PORT || 8080, () => {
+    // Проверяем, что ключи API загрузились из окружения Render
+    const finnhubKeyLoaded = !!process.env.FINNHUB_API_KEY;
+    const geminiKeyLoaded = !!process.env.GEMINI_API_KEY;
     
+    console.log(`[OK] Backend server started.`);
+    console.log(`[INFO] Finnhub Key Loaded: ${finnhubKeyLoaded}`);
+    console.log(`[INFO] Gemini Key Loaded: ${geminiKeyLoaded}`);
+    
+    if (!finnhubKeyLoaded || !geminiKeyLoaded) {
+        console.error("[CRITICAL] API keys did not load from environment. Halting.");
+        return; // Не запускаем запросы, если ключей нет
+    }
+
     // Первоначальная загрузка данных
     fetchEconomicCalendar();
     fetchMarketPulse();
