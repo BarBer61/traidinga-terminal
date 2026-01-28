@@ -61,7 +61,7 @@ async function fetchMarketPulse() {
 
         const prompt = `Проанализируй эти заголовки новостей и дай краткую сводку (2-3 предложения) об общем настроении рынка (позитивное, негативное, нейтральное или смешанное). Вот заголовки:\n\n${headlines}`;
 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${GEMINI_API_KEY}`;
         
         const geminiResponse = await fetch(geminiUrl, {
             method: 'POST',
