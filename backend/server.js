@@ -9,8 +9,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
 // Убираем константу PORT, так как Render предоставляет ее напрямую
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const FINNHUB_API_KEY = "d5svd7pr01qtkd5ge1sgd5svd7pr01qtkd5ge1t0";
+const GEMINI_API_KEY = "AIzaSyChZicXnD_hV2DukOznY8j0YFU3eLSQhW8";
 
 const MESSAGE_TYPES = {
     ECONOMIC_CALENDAR_UPDATE: 'ECONOMIC_CALENDAR_UPDATE',
