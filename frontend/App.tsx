@@ -1,6 +1,12 @@
+// frontend/App.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppView, Trade, Broker, RiskSettings } from './types';
 import { DEFAULT_BROKERS, DEFAULT_STRATEGIES } from './constants';
+
+// Хук для WebSocket
+import { useWebSocket } from './services/useWebSocket';
+
 // Компоненты
 import TradeJournal from './components/TradeJournal';
 import StatsDashboard from './components/StatsDashboard';
@@ -11,21 +17,15 @@ import RiskCalculator from './components/RiskCalculator';
 import TradingSessions from './components/TradingSessions';
 import MarketStatus from './components/MarketStatus';
 import SessionControl from './components/SessionControl';
-import NewsAlert from './components/NewsAlert'; // <-- НОВЫЙ ИМПОРТ
-
-// --- НОВЫЕ ТИПЫ ДАННЫХ ---
-interface MarketPulse {
-  state: 'СТАБИЛЬНО' | 'УМЕРЕННО' | 'ИМПУЛЬСИВНО' | 'ХАОТИЧНО';
-  impulse: number;
-  description: string;
-}
+import NewsAlert from './components/NewsAlert';
 
 const App: React.FC = () => {
-  // ... (все ваши существующие состояния isAuth, password, activeView, trades, brokers, riskSettings остаются без изменений)
+  // --- Состояния аутентификации и навигации ---
   const [isAuth, setIsAuth] = useState(() => localStorage.getItem('ta_auth') === 'true');
   const [password, setPassword] = useState('');
   const [activeView, setActiveView] = useState<AppView>(AppView.DASHBOARD);
   
+  // --- Состояния данных приложения (с сохранением в localStorage) ---
   const [trades, setTrades] = useState<Trade[]>(() => {
     const saved = localStorage.getItem('ta_trades');
     return saved ? JSON.parse(saved) : [];
@@ -43,14 +43,10 @@ const App: React.FC = () => {
     };
   });
 
-  // --- НОВЫЕ СОСТОЯНИЯ ДЛЯ ДАННЫХ В РЕАЛЬНОМ ВРЕМЕНИ ---
-  const [ws, setWs] = useState<WebSocket | null>(null);
-  const [isWsConnected, setIsWsConnected] = useState(false);
-  const [economicCalendar, setEconomicCalendar] = useState<any[]>([]);
-  const [marketPulse, setMarketPulse] = useState<MarketPulse>({ state: 'СТАБИЛЬНО', impulse: 20, description: 'Подключение...' });
-  const [newsAlert, setNewsAlert] = useState<any | null>(null);
+  // --- Получение данных из WebSocket через наш новый хук ---
+  const { isConnected, marketPulse, economicCalendar, newsAlert, sendMessage, clearNewsAlert } = useWebSocket(isAuth);
 
-  // ... (все ваши существующие useEffect, dailyPnL, handleLogin, addBroker, exportData, importData остаются без изменений)
+  // Эффект для сохранения данных в localStorage при их изменении
   useEffect(() => {
     localStorage.setItem('ta_trades', JSON.stringify(trades));
     localStorage.setItem('ta_risk_settings', JSON.stringify(riskSettings));
@@ -58,6 +54,7 @@ const App: React.FC = () => {
     localStorage.setItem('ta_auth', isAuth.toString());
   }, [trades, riskSettings, brokers, isAuth]);
 
+  // --- Вычисляемые значения и хелперы ---
   const dailyPnL = useMemo(() => {
     const today = new Date().toDateString();
     return trades
@@ -67,7 +64,7 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'admin' || password === '1234') {
+    if (password === 'admin' || password === '15911') {
       setIsAuth(true);
     } else {
       alert('ДОСТУП ЗАПРЕЩЕН: НЕВЕРНЫЙ КЛЮЧ');
@@ -108,65 +105,10 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
-  // --- НОВЫЙ ЭФФЕКТ ДЛЯ WEBSOCKET ---
-  useEffect(() => {
-    if (!isAuth) return;
+  // --- Рендеринг ---
 
-    // Определяем адрес WebSocket сервера
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.hostname}:8080`; // Используем тот же хост, но порт 8080
-
-    let reconnectTimeout: NodeJS.Timeout;
-
-    function connect() {
-      const socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        console.log('WebSocket подключен');
-        setIsWsConnected(true);
-        setWs(socket);
-      };
-
-      socket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        switch (message.type) {
-          case 'ECONOMIC_CALENDAR_UPDATE':
-            setEconomicCalendar(message.payload);
-            break;
-          case 'MARKET_PULSE_UPDATE':
-            setMarketPulse(message.payload);
-            break;
-          case 'NEWS_ALERT':
-            setNewsAlert(message.payload);
-            break;
-          // Ответ от Gemini будет обрабатываться в компоненте AICore
-        }
-      };
-
-      socket.onclose = () => {
-        console.log('WebSocket отключен. Попытка переподключения через 3 секунды...');
-        setIsWsConnected(false);
-        setWs(null);
-        reconnectTimeout = setTimeout(connect, 3000);
-      };
-
-      socket.onerror = (error) => {
-        console.error('Ошибка WebSocket:', error);
-        socket.close();
-      };
-    }
-
-    connect();
-
-    return () => {
-      clearTimeout(reconnectTimeout);
-      ws?.close();
-    };
-  }, [isAuth]);
-
-  // --- ВАША РАЗМЕТКА ---
   if (!isAuth) {
-    // ... (экран логина остается без изменений)
+    // Экран логина (без изменений)
     return (
       <div className="h-screen w-full bg-black flex items-center justify-center p-4">
         <div className="max-w-xs w-full bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] shadow-2xl text-center space-y-6 animate-in zoom-in-95 duration-500">
@@ -196,7 +138,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-black text-zinc-100 font-sans overflow-hidden">
-      {/* ... (Sidebar и Mobile Nav остаются без изменений) */}
+      {/* Sidebar и Mobile Nav (без изменений) */}
       <nav className="hidden md:flex w-14 border-r border-zinc-900 flex-col bg-black items-center py-4 space-y-4 shrink-0 z-50">
         <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4 cursor-pointer" onClick={() => setActiveView(AppView.DASHBOARD)}>
            <span className="text-[10px] font-black text-white">TA</span>
@@ -219,7 +161,7 @@ const App: React.FC = () => {
       </nav>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
-        {/* ... (Header остается без изменений) */}
+        {/* Header (без изменений) */}
         <header className="h-10 border-b border-zinc-900 bg-black px-4 flex items-center justify-between shrink-0 z-40">
            <div className="flex items-center space-x-3">
               <h2 className="text-[10px] font-black text-white uppercase tracking-tighter">Traiding<span className="text-indigo-500">A</span></h2>
@@ -234,12 +176,11 @@ const App: React.FC = () => {
            </div>
         </header>
 
-        {/* --- ОБНОВЛЕННАЯ РАЗМЕТКА С ПЕРЕДАЧЕЙ ДАННЫХ --- */}
+        {/* Основной контент с передачей данных из хука */}
         <div className="flex-1 overflow-hidden bg-[#020202] mb-[60px] md:mb-0 relative">
           {activeView === AppView.DASHBOARD && (
             <div className="h-full flex flex-col space-y-2 overflow-y-auto md:overflow-hidden p-2 sm:p-3 custom-scrollbar">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
-                 {/* ... (блок "Прибыль дня" без изменений) */}
                  <div className="h-[100px] sm:h-[120px] bg-zinc-900/30 border border-zinc-800 rounded-[1.8rem] p-4 flex flex-col justify-between overflow-hidden">
                     <div className="flex justify-between items-center">
                        <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">ПРИБЫЛЬ ДНЯ</span>
@@ -254,7 +195,7 @@ const App: React.FC = () => {
                        </div>
                     </div>
                  </div>
-                 <div className="h-[100px] sm:h-[120px]"><MarketStatus pulse={marketPulse} isConnected={isWsConnected} /></div>
+                 <div className="h-[100px] sm:h-[120px]"><MarketStatus pulse={marketPulse} isConnected={isConnected} /></div>
                  <div className="h-[100px] sm:h-[120px]"><TradingSessions /></div>
                  <div className="h-[100px] sm:h-[120px]"><SessionControl /></div>
               </div>
@@ -262,7 +203,7 @@ const App: React.FC = () => {
               <div className="flex-1 grid grid-cols-12 gap-2 sm:gap-3 overflow-y-auto md:overflow-hidden min-h-0 pb-4 md:pb-0">
                  <div className="col-span-12 lg:col-span-4 xl:col-span-3 flex flex-col space-y-2 sm:space-y-3 min-h-0">
                     <div className="shrink-0"><RiskCalculator settings={riskSettings} setSettings={setRiskSettings} dailyPnL={dailyPnL} /></div>
-                    <div className="flex-1 min-h-[300px] lg:min-h-0"><NewsPanel events={economicCalendar} isConnected={isWsConnected} /></div>
+                    <div className="flex-1 min-h-[300px] lg:min-h-0"><NewsPanel events={economicCalendar} isConnected={isConnected} /></div>
                  </div>
                  <div className="col-span-12 lg:col-span-8 xl:col-span-6 flex flex-col space-y-2 sm:space-y-3 min-h-0">
                     <div className="h-[200px] sm:h-[230px] shrink-0"><StatsDashboard trades={trades} /></div>
@@ -270,7 +211,7 @@ const App: React.FC = () => {
                        <TradeJournal trades={trades} brokers={brokers} strategies={DEFAULT_STRATEGIES} onAddTrade={(t) => setTrades([t, ...trades])} onDeleteTrade={(id) => setTrades(trades.filter(x => x.id !== id))} onAddBroker={addBroker} compact />
                     </div>
                  </div>
-                 <div className="col-span-12 xl:col-span-3 h-[480px] xl:h-full"><AICore ws={ws} /></div>
+                 <div className="col-span-12 xl:col-span-3 h-[480px] xl:h-full"><AICore sendMessage={sendMessage} /></div>
               </div>
             </div>
           )}
@@ -280,9 +221,8 @@ const App: React.FC = () => {
               {activeView === AppView.JOURNAL && <TradeJournal trades={trades} brokers={brokers} strategies={DEFAULT_STRATEGIES} onAddTrade={(t) => setTrades([t, ...trades])} onDeleteTrade={(id) => setTrades(trades.filter(x => x.id !== id))} onAddBroker={addBroker} />}
               {activeView === AppView.ANALYTICS && <StatsDashboard trades={trades} extended />}
               {activeView === AppView.CALENDAR && <TraderCalendar trades={trades} />}
-              {activeView === AppView.AI_CORE && <div className="h-full max-w-4xl mx-auto"><AICore ws={ws} /></div>}
+              {activeView === AppView.AI_CORE && <div className="h-full max-w-4xl mx-auto"><AICore sendMessage={sendMessage} /></div>}
               {activeView === AppView.SETTINGS && (
-                 // ... (блок настроек остается без изменений)
                  <div className="max-w-2xl mx-auto p-5 sm:p-10 bg-zinc-900 border border-zinc-800 rounded-[2.5rem] shadow-2xl space-y-10">
                     <h2 className="text-xl font-black uppercase text-white tracking-widest flex items-center">
                        <span className="w-2 h-6 bg-indigo-500 mr-4 rounded-full"></span>
@@ -319,14 +259,14 @@ const App: React.FC = () => {
           )}
         </div>
         
-        {/* НОВЫЙ КОМПОНЕНТ ДЛЯ ОПОВЕЩЕНИЙ */}
-        <NewsAlert alert={newsAlert} onClose={() => setNewsAlert(null)} />
+        {/* Компонент для оповещений */}
+        <NewsAlert alert={newsAlert} onClose={clearNewsAlert} />
       </div>
     </div>
   );
 };
 
-// ... (компонент NavIcon остается без изменений)
+// Компонент NavIcon (без изменений)
 const NavIcon: React.FC<{ active: boolean; onClick: () => void; icon: string; title?: string }> = ({ active, onClick, icon, title }) => (
   <button 
     onClick={onClick} 
