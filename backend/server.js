@@ -6,7 +6,7 @@ require('dotenv').config();
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
 const PORT = process.env.PORT || 10000;
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// GEMINI_API_KEY больше не нужен
 
 // --- СОЗДАНИЕ СЕРВЕРА ---
 const server = http.createServer();
@@ -15,6 +15,11 @@ const wss = new WebSocket.Server({ server });
 // --- ЛОГИКА WEBSOCKET ---
 wss.on('connection', ws => {
     console.log('[OK] Client connected');
+    // При подключении нового клиента, сразу отправляем ему последние данные, если они есть
+    if (lastPulseData) {
+        console.log('[INFO] Sending cached pulse to new client.');
+        ws.send(JSON.stringify({ type: 'marketPulse', data: lastPulseData }));
+    }
     ws.on('close', () => {
         console.log('[INFO] Client disconnected');
     });
@@ -23,7 +28,10 @@ wss.on('connection', ws => {
     });
 });
 
+let lastPulseData = null; // Кэш для последних полученных данных
+
 function broadcast(data) {
+    lastPulseData = data.data; // Сохраняем данные в кэш
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify(data));
@@ -48,7 +56,7 @@ async function fetchMarketNews() {
     }
 }
 
-// ИЗМЕНЕНО: Функция для анализа новостей с помощью модели text-bison-001
+// ИЗМЕНЕНО: Функция для анализа новостей с помощью альтернативного API
 async function fetchMarketPulse() {
     try {
         const newsItems = await fetchMarketNews();
@@ -57,37 +65,31 @@ async function fetchMarketPulse() {
             return;
         }
 
-        const headlines = newsItems.map(item => item.headline).join('\n');
-        const prompt = `Based on these headlines, provide a concise market sentiment summary (2-3 sentences) and a sentiment score from -1 (very bearish) to 1 (very bullish). Headlines:\n\n${headlines}\n\nFormat your response as a single, valid JSON object: {"summary": "...", "sentiment": X.X}`;
+        // Собираем заголовки в один текст для анализа
+        const textToAnalyze = newsItems.map(item => item.headline).join('. ');
 
-        // ИЗМЕНЕНИЕ 1: Используем модель text-bison-001
-        const bisonUrl = `https://generativelanguage.googleapis.com/v1beta/models/text-bison-001:generateText?key=${GEMINI_API_KEY}`;
-
-        const apiResponse = await fetch(bisonUrl, {
+        // Используем бесплатный API для анализа настроений
+        const analysisResponse = await fetch('https://sentim-api.herokuapp.com/api/v1/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // ИЗМЕНЕНИЕ 2: Структура тела запроса для text-bison-001
-            body: JSON.stringify({
-                prompt: { text: prompt }
-            })
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ text: textToAnalyze })
         });
 
-        const responseData = await apiResponse.json();
-
-        if (!apiResponse.ok) {
-            console.error(`[ERROR] in fetchMarketPulse: Google API responded with status ${apiResponse.status}:`, JSON.stringify(responseData));
+        if (!analysisResponse.ok) {
+            console.error(`[ERROR] Sentiment API responded with status ${analysisResponse.status}`);
             return;
         }
 
-        // ИЗМЕНЕНИЕ 3: Структура ответа у text-bison-001 отличается
-        const text = responseData?.candidates?.[0]?.output;
-        if (!text) {
-            console.error('[ERROR] Could not extract text from Google API response:', JSON.stringify(responseData));
-            return;
-        }
+        const analysisData = await analysisResponse.json();
         
-        const cleanedText = text.replace(/```json|```/g, '').trim();
-        const pulseData = JSON.parse(cleanedText);
+        // Форматируем данные под наш стандарт
+        const pulseData = {
+            summary: `Analysis based on ${newsItems.length} latest headlines. Sentiment polarity is ${analysisData.result.polarity.toFixed(2)}.`,
+            sentiment: analysisData.result.polarity.toFixed(2) // API возвращает полярность от -1 до 1
+        };
         
         console.log('[OK] Market Pulse:', pulseData);
         broadcast({ type: 'marketPulse', data: pulseData });
@@ -101,7 +103,6 @@ async function fetchMarketPulse() {
 server.listen(PORT, () => {
     console.log(`[OK] Backend server started on port ${PORT}.`);
     console.log(`[INFO] Finnhub Key Loaded: ${!!FINNHUB_API_KEY}`);
-    console.log(`[INFO] Gemini Key Loaded: ${!!GEMINI_API_KEY}`);
 
     fetchMarketPulse();
     setInterval(fetchMarketPulse, 5 * 60 * 1000); 
