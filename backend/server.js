@@ -6,19 +6,18 @@ require('dotenv').config();
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
 const PORT = process.env.PORT || 10000;
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
-const NLP_CLOUD_API_KEY = process.env.NLP_CLOUD_API_KEY; // Новый ключ
+const NLP_CLOUD_API_KEY = process.env.NLP_CLOUD_API_KEY;
 
 // --- СОЗДАНИЕ СЕРВЕРА ---
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
 // --- ЛОГИКА WEBSOCKET ---
-let lastPulseData = null; // Кэш для последних данных
+let lastPulseData = null;
 
 wss.on('connection', ws => {
     console.log('[OK] Client connected');
     if (lastPulseData) {
-        console.log('[INFO] Sending cached pulse to new client.');
         ws.send(JSON.stringify({ type: 'marketPulse', data: lastPulseData }));
     }
     ws.on('close', () => console.log('[INFO] Client disconnected'));
@@ -43,15 +42,13 @@ async function fetchMarketNews() {
             console.error(`[ERROR] in fetchMarketNews: Finnhub API responded with status ${response.status}`);
             return [];
         }
-        const news = await response.json();
-        return news.slice(0, 5);
+        return await response.json();
     } catch (error) {
         console.error('[ERROR] in fetchMarketNews:', error.message);
         return [];
     }
 }
 
-// ИЗМЕНЕНО: Функция для анализа с помощью NLP Cloud
 async function fetchMarketPulse() {
     try {
         const newsItems = await fetchMarketNews();
@@ -60,7 +57,7 @@ async function fetchMarketPulse() {
             return;
         }
 
-        const textToAnalyze = newsItems.map(item => item.headline).join('. ');
+        const textToAnalyze = newsItems.slice(0, 5).map(item => item.headline).join('. ');
 
         const analysisResponse = await fetch('https://api.nlpcloud.io/v1/finbert-sentiment-analysis/sentiment', {
             method: 'POST',
@@ -71,22 +68,33 @@ async function fetchMarketPulse() {
             body: JSON.stringify({ text: textToAnalyze })
         });
 
-        const analysisData = await analysisResponse.json();
+        // --- УЛУЧШЕНИЕ: ПРОВЕРКА ОТВЕТА ПЕРЕД ПАРСИНГОМ ---
+        const responseText = await analysisResponse.text(); // Сначала получаем ответ как простой текст
 
         if (!analysisResponse.ok) {
-            console.error(`[ERROR] NLP Cloud API responded with status ${analysisResponse.status}:`, JSON.stringify(analysisData));
+            console.error(`[ERROR] NLP Cloud API responded with status ${analysisResponse.status}. Response: ${responseText}`);
             return;
         }
-        
-        // Ищем наиболее вероятный результат
+
+        let analysisData;
+        try {
+            analysisData = JSON.parse(responseText); // Теперь парсим текст, который мы уже получили
+        } catch (e) {
+            console.error(`[ERROR] Failed to parse NLP Cloud response as JSON. Response was: ${responseText}`);
+            return; // Выходим, если это не JSON
+        }
+        // --- КОНЕЦ УЛУЧШЕНИЯ ---
+
+        if (!analysisData.scored_labels) {
+             console.error(`[ERROR] Invalid data structure from NLP Cloud:`, analysisData);
+             return;
+        }
+
         const topScore = analysisData.scored_labels.reduce((a, b) => (a.score > b.score ? a : b));
         
         let sentimentScore = 0;
-        if (topScore.label === 'positive') {
-            sentimentScore = topScore.score;
-        } else if (topScore.label === 'negative') {
-            sentimentScore = -topScore.score;
-        } // 'neutral' остается 0
+        if (topScore.label === 'positive') sentimentScore = topScore.score;
+        else if (topScore.label === 'negative') sentimentScore = -topScore.score;
 
         const pulseData = {
             summary: `Market sentiment is predominantly '${topScore.label}' based on latest headlines.`,
@@ -112,5 +120,5 @@ server.listen(PORT, () => {
     }
 
     fetchMarketPulse();
-    setInterval(fetchMarketPulse, 5 * 60 * 1000); 
+    setInterval(fetchMarketPulse, 15 * 60 * 1000); // Увеличим интервал до 15 минут, чтобы экономить лимиты
 });
