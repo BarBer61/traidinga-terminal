@@ -42,7 +42,8 @@ async function fetchMarketNews() {
             console.error(`[ERROR] in fetchMarketNews: Finnhub API responded with status ${response.status}`);
             return [];
         }
-        return await response.json();
+        const news = await response.json();
+        return news.slice(0, 5); // Берем только 5 свежих новостей
     } catch (error) {
         console.error('[ERROR] in fetchMarketNews:', error.message);
         return [];
@@ -57,10 +58,11 @@ async function fetchMarketPulse() {
             return;
         }
 
-        const textToAnalyze = newsItems.slice(0, 5).map(item => item.headline).join('. ');
+        const textToAnalyze = newsItems.map(item => item.headline).join('. ');
 
-        // ИЗМЕНЕНИЕ: Добавлен код языка /en/ в URL
-        const analysisResponse = await fetch('https://api.nlpcloud.io/v1/en/finbert-sentiment-analysis/sentiment', {
+        // ИЗМЕНЕНИЕ: Используем стандартную модель, доступную на бесплатном тарифе
+        const model = 'distilbert-base-uncased-finetuned-sst-2-english';
+        const analysisResponse = await fetch(`https://api.nlpcloud.io/v1/${model}/sentiment`, {
             method: 'POST',
             headers: {
                 'Authorization': `Token ${NLP_CLOUD_API_KEY}`,
@@ -92,11 +94,15 @@ async function fetchMarketPulse() {
         const topScore = analysisData.scored_labels.reduce((a, b) => (a.score > b.score ? a : b));
         
         let sentimentScore = 0;
-        if (topScore.label === 'positive') sentimentScore = topScore.score;
-        else if (topScore.label === 'negative') sentimentScore = -topScore.score;
+        // Эта модель использует 'LABEL_1' для позитива и 'LABEL_0' для негатива
+        if (topScore.label === 'LABEL_1' || topScore.label.toLowerCase() === 'positive') {
+            sentimentScore = topScore.score;
+        } else if (topScore.label === 'LABEL_0' || topScore.label.toLowerCase() === 'negative') {
+            sentimentScore = -topScore.score;
+        }
 
         const pulseData = {
-            summary: `Market sentiment is predominantly '${topScore.label}' based on latest headlines.`,
+            summary: `General market sentiment is predominantly '${topScore.label.replace('LABEL_1', 'positive').replace('LABEL_0', 'negative')}' based on latest headlines.`,
             sentiment: sentimentScore.toFixed(2)
         };
         
@@ -119,5 +125,5 @@ server.listen(PORT, () => {
     }
 
     fetchMarketPulse();
-    setInterval(fetchMarketPulse, 15 * 60 * 1000);
+    setInterval(fetchMarketPulse, 15 * 60 * 1000); // Интервал 15 минут для экономии лимитов
 });
