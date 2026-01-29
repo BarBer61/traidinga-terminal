@@ -59,7 +59,8 @@ async function fetchMarketPulse() {
 
         const textToAnalyze = newsItems.slice(0, 5).map(item => item.headline).join('. ');
 
-        const analysisResponse = await fetch('https://api.nlpcloud.io/v1/finbert-sentiment-analysis/sentiment', {
+        // ИЗМЕНЕНИЕ: Добавлен код языка /en/ в URL
+        const analysisResponse = await fetch('https://api.nlpcloud.io/v1/en/finbert-sentiment-analysis/sentiment', {
             method: 'POST',
             headers: {
                 'Authorization': `Token ${NLP_CLOUD_API_KEY}`,
@@ -68,8 +69,7 @@ async function fetchMarketPulse() {
             body: JSON.stringify({ text: textToAnalyze })
         });
 
-        // --- УЛУЧШЕНИЕ: ПРОВЕРКА ОТВЕТА ПЕРЕД ПАРСИНГОМ ---
-        const responseText = await analysisResponse.text(); // Сначала получаем ответ как простой текст
+        const responseText = await analysisResponse.text();
 
         if (!analysisResponse.ok) {
             console.error(`[ERROR] NLP Cloud API responded with status ${analysisResponse.status}. Response: ${responseText}`);
@@ -78,12 +78,11 @@ async function fetchMarketPulse() {
 
         let analysisData;
         try {
-            analysisData = JSON.parse(responseText); // Теперь парсим текст, который мы уже получили
+            analysisData = JSON.parse(responseText);
         } catch (e) {
             console.error(`[ERROR] Failed to parse NLP Cloud response as JSON. Response was: ${responseText}`);
-            return; // Выходим, если это не JSON
+            return;
         }
-        // --- КОНЕЦ УЛУЧШЕНИЯ ---
 
         if (!analysisData.scored_labels) {
              console.error(`[ERROR] Invalid data structure from NLP Cloud:`, analysisData);
@@ -120,5 +119,5 @@ server.listen(PORT, () => {
     }
 
     fetchMarketPulse();
-    setInterval(fetchMarketPulse, 15 * 60 * 1000); // Увеличим интервал до 15 минут, чтобы экономить лимиты
+    setInterval(fetchMarketPulse, 15 * 60 * 1000);
 });
