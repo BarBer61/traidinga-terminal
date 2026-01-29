@@ -6,32 +6,27 @@ require('dotenv').config();
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
 const PORT = process.env.PORT || 10000;
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
-// GEMINI_API_KEY больше не нужен
+const NLP_CLOUD_API_KEY = process.env.NLP_CLOUD_API_KEY; // Новый ключ
 
 // --- СОЗДАНИЕ СЕРВЕРА ---
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
 // --- ЛОГИКА WEBSOCKET ---
+let lastPulseData = null; // Кэш для последних данных
+
 wss.on('connection', ws => {
     console.log('[OK] Client connected');
-    // При подключении нового клиента, сразу отправляем ему последние данные, если они есть
     if (lastPulseData) {
         console.log('[INFO] Sending cached pulse to new client.');
         ws.send(JSON.stringify({ type: 'marketPulse', data: lastPulseData }));
     }
-    ws.on('close', () => {
-        console.log('[INFO] Client disconnected');
-    });
-    ws.on('error', error => {
-        console.error('[ERROR] WebSocket error:', error);
-    });
+    ws.on('close', () => console.log('[INFO] Client disconnected'));
+    ws.on('error', error => console.error('[ERROR] WebSocket error:', error));
 });
 
-let lastPulseData = null; // Кэш для последних полученных данных
-
 function broadcast(data) {
-    lastPulseData = data.data; // Сохраняем данные в кэш
+    lastPulseData = data.data;
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify(data));
@@ -56,7 +51,7 @@ async function fetchMarketNews() {
     }
 }
 
-// ИЗМЕНЕНО: Функция для анализа новостей с помощью альтернативного API
+// ИЗМЕНЕНО: Функция для анализа с помощью NLP Cloud
 async function fetchMarketPulse() {
     try {
         const newsItems = await fetchMarketNews();
@@ -65,30 +60,37 @@ async function fetchMarketPulse() {
             return;
         }
 
-        // Собираем заголовки в один текст для анализа
         const textToAnalyze = newsItems.map(item => item.headline).join('. ');
 
-        // Используем бесплатный API для анализа настроений
-        const analysisResponse = await fetch('https://sentim-api.herokuapp.com/api/v1/', {
+        const analysisResponse = await fetch('https://api.nlpcloud.io/v1/finbert-sentiment-analysis/sentiment', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Authorization': `Token ${NLP_CLOUD_API_KEY}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({ text: textToAnalyze })
         });
 
+        const analysisData = await analysisResponse.json();
+
         if (!analysisResponse.ok) {
-            console.error(`[ERROR] Sentiment API responded with status ${analysisResponse.status}`);
+            console.error(`[ERROR] NLP Cloud API responded with status ${analysisResponse.status}:`, JSON.stringify(analysisData));
             return;
         }
-
-        const analysisData = await analysisResponse.json();
         
-        // Форматируем данные под наш стандарт
+        // Ищем наиболее вероятный результат
+        const topScore = analysisData.scored_labels.reduce((a, b) => (a.score > b.score ? a : b));
+        
+        let sentimentScore = 0;
+        if (topScore.label === 'positive') {
+            sentimentScore = topScore.score;
+        } else if (topScore.label === 'negative') {
+            sentimentScore = -topScore.score;
+        } // 'neutral' остается 0
+
         const pulseData = {
-            summary: `Analysis based on ${newsItems.length} latest headlines. Sentiment polarity is ${analysisData.result.polarity.toFixed(2)}.`,
-            sentiment: analysisData.result.polarity.toFixed(2) // API возвращает полярность от -1 до 1
+            summary: `Market sentiment is predominantly '${topScore.label}' based on latest headlines.`,
+            sentiment: sentimentScore.toFixed(2)
         };
         
         console.log('[OK] Market Pulse:', pulseData);
@@ -103,6 +105,11 @@ async function fetchMarketPulse() {
 server.listen(PORT, () => {
     console.log(`[OK] Backend server started on port ${PORT}.`);
     console.log(`[INFO] Finnhub Key Loaded: ${!!FINNHUB_API_KEY}`);
+    console.log(`[INFO] NLP Cloud Key Loaded: ${!!NLP_CLOUD_API_KEY}`);
+
+    if (!NLP_CLOUD_API_KEY) {
+        console.error('[FATAL] NLP_CLOUD_API_KEY is not set!');
+    }
 
     fetchMarketPulse();
     setInterval(fetchMarketPulse, 5 * 60 * 1000); 
