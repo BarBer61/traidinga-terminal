@@ -1,5 +1,5 @@
 // frontend/App.tsx
-
+import './index.css';
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppView, Trade, Broker, RiskSettings } from './types';
 import { DEFAULT_BROKERS, DEFAULT_STRATEGIES } from './constants';
