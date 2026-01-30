@@ -1,6 +1,8 @@
 // --- ЗАВИСИМОСТИ ---
 const WebSocket = require('ws');
 const http = require('http');
+const express = require('express'); // <-- Используем Express
+const path = require('path');       // <-- Модуль для работы с путями
 require('dotenv').config();
 
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
@@ -8,15 +10,22 @@ const PORT = process.env.PORT || 10000;
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const NLP_CLOUD_API_KEY = process.env.NLP_CLOUD_API_KEY;
 
-// --- СОЗДАНИЕ СЕРВЕРА ---
-const server = http.createServer();
+// --- СОЗДАНИЕ СЕРВЕРА С EXPRESS ---
+const app = express();
+const server = http.createServer(app); // Express теперь управляет http-сервером
 const wss = new WebSocket.Server({ server });
 
-// --- ЛОГИКА WEBSOCKET ---
+// --- НАСТРОЙКА EXPRESS ДЛЯ ОБСЛУЖИВАНИЯ ФАЙЛОВ ФРОНТЕНДА ---
+// Эта строка — ключевое исправление. Она говорит серверу, как правильно
+// отдавать CSS, JS и другие файлы из папки сборки вашего фронтенда.
+app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
+
+// --- ЛОГИКА WEBSOCKET (без существенных изменений) ---
 let lastPulseData = null;
 
 wss.on('connection', ws => {
     console.log('[OK] Client connected');
+    // Отправляем последние данные новому клиенту, если они есть
     if (lastPulseData) {
         ws.send(JSON.stringify({ type: 'marketPulse', data: lastPulseData }));
     }
@@ -25,15 +34,20 @@ wss.on('connection', ws => {
 });
 
 function broadcast(data) {
-    lastPulseData = data.data;
+    // Улучшение: сохраняем последние данные только если это marketPulse
+    if (data.type === 'marketPulse') {
+        lastPulseData = data.data;
+    }
+    
+    const message = JSON.stringify(data);
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(data));
+            client.send(message);
         }
     });
 }
 
-// --- ЛОГИКА ПОЛУЧЕНИЯ ДАННЫХ ---
+// --- ЛОГИКА ПОЛУЧЕНИЯ ДАННЫХ (без изменений) ---
 
 async function fetchMarketNews() {
     try {
@@ -59,9 +73,8 @@ async function fetchMarketPulse() {
         }
 
         const textToAnalyze = newsItems.map(item => item.headline).join('. ');
-
-        // ИЗМЕНЕНИЕ: Используем стандартную модель, доступную на бесплатном тарифе
         const model = 'distilbert-base-uncased-finetuned-sst-2-english';
+        
         const analysisResponse = await fetch(`https://api.nlpcloud.io/v1/${model}/sentiment`, {
             method: 'POST',
             headers: {
@@ -94,7 +107,6 @@ async function fetchMarketPulse() {
         const topScore = analysisData.scored_labels.reduce((a, b) => (a.score > b.score ? a : b));
         
         let sentimentScore = 0;
-        // Эта модель использует 'LABEL_1' для позитива и 'LABEL_0' для негатива
         if (topScore.label === 'LABEL_1' || topScore.label.toLowerCase() === 'positive') {
             sentimentScore = topScore.score;
         } else if (topScore.label === 'LABEL_0' || topScore.label.toLowerCase() === 'negative') {
@@ -120,10 +132,19 @@ server.listen(PORT, () => {
     console.log(`[INFO] Finnhub Key Loaded: ${!!FINNHUB_API_KEY}`);
     console.log(`[INFO] NLP Cloud Key Loaded: ${!!NLP_CLOUD_API_KEY}`);
 
-    if (!NLP_CLOUD_API_KEY) {
-        console.error('[FATAL] NLP_CLOUD_API_KEY is not set!');
+    // Улучшение: более надежная проверка ключей
+    if (!FINNHUB_API_KEY || !NLP_CLOUD_API_KEY) {
+        console.error('[FATAL] One or more API keys are not set! Check FINNHUB_API_KEY and NLP_CLOUD_API_KEY in your Render environment variables.');
     }
 
     fetchMarketPulse();
-    setInterval(fetchMarketPulse, 15 * 60 * 1000); // Интервал 15 минут для экономии лимитов
+    setInterval(fetchMarketPulse, 15 * 60 * 1000); // Интервал 15 минут
+});
+
+// --- ОБРАБОТКА ВСЕХ ОСТАЛЬНЫХ ЗАПРОСОВ ---
+// Эта часть нужна, чтобы при обновлении страницы (F5) на любой
+// внутренней ссылке (например, /analytics) не было ошибки 404.
+// Сервер просто вернет главный HTML-файл, а React Router разберется дальше.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
 });
