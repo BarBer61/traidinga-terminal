@@ -1,8 +1,6 @@
 // --- ЗАВИСИМОСТИ ---
 const WebSocket = require('ws');
 const http = require('http');
-const express = require('express'); // <-- Используем Express
-const path = require('path');       // <-- Модуль для работы с путями
 require('dotenv').config();
 
 // --- НАСТРОЙКИ И КОНСТАНТЫ ---
@@ -10,17 +8,17 @@ const PORT = process.env.PORT || 10000;
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const NLP_CLOUD_API_KEY = process.env.NLP_CLOUD_API_KEY;
 
-// --- СОЗДАНИЕ СЕРВЕРА С EXPRESS ---
-const app = express();
-const server = http.createServer(app); // Express теперь управляет http-сервером
+// --- СОЗДАНИЕ СЕРВЕРА ---
+// Создаем простой HTTP-сервер. Его единственная задача - быть основой для WebSocket.
+// Он не будет обслуживать файлы, так как этим занимается отдельный сервис Render.
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('WebSocket server is running.');
+});
+
 const wss = new WebSocket.Server({ server });
 
-// --- НАСТРОЙКА EXPRESS ДЛЯ ОБСЛУЖИВАНИЯ ФАЙЛОВ ФРОНТЕНДА ---
-// Эта строка — ключевое исправление. Она говорит серверу, как правильно
-// отдавать CSS, JS и другие файлы из папки сборки вашего фронтенда.
-app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
-
-// --- ЛОГИКА WEBSOCKET (без существенных изменений) ---
+// --- ЛОГИКА WEBSOCKET ---
 let lastPulseData = null;
 
 wss.on('connection', ws => {
@@ -34,7 +32,7 @@ wss.on('connection', ws => {
 });
 
 function broadcast(data) {
-    // Улучшение: сохраняем последние данные только если это marketPulse
+    // Сохраняем последние данные marketPulse для новых клиентов
     if (data.type === 'marketPulse') {
         lastPulseData = data.data;
     }
@@ -47,7 +45,7 @@ function broadcast(data) {
     });
 }
 
-// --- ЛОГИКА ПОЛУЧЕНИЯ ДАННЫХ (без изменений) ---
+// --- ЛОГИКА ПОЛУЧЕНИЯ ДАННЫХ ---
 
 async function fetchMarketNews() {
     try {
@@ -57,7 +55,7 @@ async function fetchMarketNews() {
             return [];
         }
         const news = await response.json();
-        return news.slice(0, 5); // Берем только 5 свежих новостей
+        return news.slice(0, 5);
     } catch (error) {
         console.error('[ERROR] in fetchMarketNews:', error.message);
         return [];
@@ -132,19 +130,10 @@ server.listen(PORT, () => {
     console.log(`[INFO] Finnhub Key Loaded: ${!!FINNHUB_API_KEY}`);
     console.log(`[INFO] NLP Cloud Key Loaded: ${!!NLP_CLOUD_API_KEY}`);
 
-    // Улучшение: более надежная проверка ключей
     if (!FINNHUB_API_KEY || !NLP_CLOUD_API_KEY) {
         console.error('[FATAL] One or more API keys are not set! Check FINNHUB_API_KEY and NLP_CLOUD_API_KEY in your Render environment variables.');
     }
 
     fetchMarketPulse();
     setInterval(fetchMarketPulse, 15 * 60 * 1000); // Интервал 15 минут
-});
-
-// --- ОБРАБОТКА ВСЕХ ОСТАЛЬНЫХ ЗАПРОСОВ ---
-// Эта часть нужна, чтобы при обновлении страницы (F5) на любой
-// внутренней ссылке (например, /analytics) не было ошибки 404.
-// Сервер просто вернет главный HTML-файл, а React Router разберется дальше.
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
 });
