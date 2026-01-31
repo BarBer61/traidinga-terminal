@@ -1,3 +1,10 @@
+# Dependencies
+/node_modules
+
+# Build output
+/dist
+/dist-ssr
+
 # Logs
 logs
 *.log
@@ -7,13 +14,8 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Local development
 *.local
-
-# Lockfiles
-package-lock.json # <-- ЭТУ СТРОКУ НУЖНО ДОБАВИТЬ
 
 # Editor directories and files
 .vscode/*
