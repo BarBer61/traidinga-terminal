@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Trade } from '../types';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
@@ -72,9 +71,13 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
       </div>
 
       <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0">
-        <div className="flex-1 sm:w-2/3 p-3 min-h-[120px]">
+        {/* 
+          ИЗМЕНЕНИЕ ЗДЕСЬ: Удален класс `min-h-[120px]`.
+          Теперь этот div будет корректно растягиваться.
+        */}
+        <div className="flex-1 sm:w-2/3 p-3">
            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartType === 'EQUITY' ? statsData.equity : statsData.drawdown}>
+              <AreaChart data={chartType === 'EQUITY' ? statsData.equity : statsData.drawdown} margin={{ top: 5, right: 5, bottom: -20, left: -30 }}>
                 <defs>
                   <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={chartType === 'EQUITY' ? '#6366f1' : '#ef4444'} stopOpacity={0.2}/>
@@ -84,7 +87,10 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#000', border: '1px solid #27272a', fontSize: '9px', borderRadius: '10px' }}
                   itemStyle={{ color: chartType === 'EQUITY' ? '#6366f1' : '#ef4444' }}
+                  labelStyle={{ display: 'none' }}
+                  cursor={{ stroke: '#3f3f46', strokeWidth: 1 }}
                 />
+                <YAxis tick={{ fontSize: 8, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <Area type="monotone" dataKey="value" stroke={chartType === 'EQUITY' ? '#6366f1' : '#ef4444'} fill="url(#chartGrad)" strokeWidth={2.5} dot={false} />
               </AreaChart>
            </ResponsiveContainer>
