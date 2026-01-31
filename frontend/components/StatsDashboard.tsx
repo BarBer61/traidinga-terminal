@@ -1,16 +1,26 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Trade } from '../types';
 import { AreaChart, Area, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { withSize } from 'react-sizeme';
 
 interface Props {
   trades: Trade[];
-  extended?: boolean;
+  // size-me передаст сюда реальные размеры контейнера
+  size: {
+    width: number;
+    height: number;
+  };
 }
 
-const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
-  const [isReady, setIsReady] = useState(false);
-  
-  // ВСЕ ХУКИ ТЕПЕРЬ НА ВЕРХНЕМ УРОВНЕ
+// Внутренний компонент, который отвечает ТОЛЬКО за отрисовку
+const InnerDashboard: React.FC<Props> = ({ trades, size }) => {
+  // Если размеры еще не определены или равны нулю, мы НЕ РИСУЕМ ГРАФИКИ.
+  // Это наш главный предохранитель.
+  if (!size.width || !size.height) {
+    return null; // Возвращаем пустоту, чтобы ничего не сломалось
+  }
+
+  // Вся остальная логика выполняется, только если размеры корректны
   const [chartType, setChartType] = useState<'EQUITY' | 'DRAWDOWN'>('EQUITY');
 
   const wins = trades.filter(t => t.result === 'WIN').length;
@@ -54,20 +64,6 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
     { name: 'WIN', value: wins || 1, color: '#10b981' },
     { name: 'LOSS', value: losses || 0, color: '#ef4444' }
   ];
-
-  // Наш рабочий трюк с отложенным рендерингом
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // УСЛОВИЕ ТЕПЕРЬ ВЛИЯЕТ ТОЛЬКО НА ВОЗВРАЩАЕМЫЙ JSX
-  if (!isReady) {
-    return <div className="h-full w-full bg-zinc-900/40 border border-zinc-800 rounded-[2rem] shadow-2xl"></div>;
-  }
 
   return (
     <div className={`h-full grid grid-rows-[auto_1fr] bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden shadow-2xl`}>
@@ -140,4 +136,5 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
   );
 };
 
-export default StatsDashboard;
+// Экспортируем не сам компонент, а его "обертку", которая и будет измерять размер
+export default withSize({ monitorHeight: true })(InnerDashboard);
