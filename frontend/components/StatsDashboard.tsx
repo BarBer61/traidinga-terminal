@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Trade } from '../types';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { AreaChart, Area, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 
 interface Props {
   trades: Trade[];
@@ -10,6 +10,7 @@ interface Props {
 const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
   const [chartType, setChartType] = useState<'EQUITY' | 'DRAWDOWN'>('EQUITY');
 
+  // Вся ваша логика вычислений остается без изменений
   const wins = trades.filter(t => t.result === 'WIN').length;
   const losses = trades.filter(t => t.result === 'LOSS').length;
   const winRate = trades.length > 0 ? (wins / trades.length * 100).toFixed(0) : 0;
@@ -52,9 +53,13 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
     { name: 'LOSS', value: losses || 0, color: '#ef4444' }
   ];
 
+  // --- ИЗМЕНЕНИЯ НАЧИНАЮТСЯ ЗДЕСЬ ---
   return (
-    <div className={`h-full flex flex-col bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden shadow-2xl`}>
-      <div className="p-3 sm:p-4 flex justify-between items-center bg-zinc-900/60 border-b border-zinc-900 shrink-0">
+    // 1. Используем CSS Grid для всего компонента.
+    //    `grid-rows-[auto_1fr]` означает: первая строка (хедер) - авто-высота, вторая (контент) - занять все остальное место.
+    <div className={`h-full grid grid-rows-[auto_1fr] bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden shadow-2xl`}>
+      {/* Хедер остается без изменений */}
+      <div className="p-3 sm:p-4 flex justify-between items-center bg-zinc-900/60 border-b border-zinc-900">
         <div className="flex space-x-3 sm:space-x-4">
            <button onClick={() => setChartType('EQUITY')} className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${chartType === 'EQUITY' ? 'text-indigo-500 underline underline-offset-4' : 'text-zinc-600 hover:text-zinc-400'}`}>ЭКВИТИ</button>
            <button onClick={() => setChartType('DRAWDOWN')} className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${chartType === 'DRAWDOWN' ? 'text-red-500 underline underline-offset-4' : 'text-zinc-600 hover:text-zinc-400'}`}>ПРОСАДКА</button>
@@ -70,12 +75,12 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-0">
-        {/* 
-          ИЗМЕНЕНИЕ ЗДЕСЬ: Удален класс `min-h-[120px]`.
-          Теперь этот div будет корректно растягиваться.
-        */}
-        <div className="flex-1 sm:w-2/3 p-3">
+      {/* 2. Используем CSS Grid для контента.
+             `grid-cols-3` делит область на 3 колонки.
+             `min-h-0` здесь критически важен для правильной работы Grid. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 min-h-0">
+        {/* 3. Основной график занимает 2 из 3 колонок. */}
+        <div className="col-span-1 sm:col-span-2 p-3 min-h-0 min-w-0">
            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartType === 'EQUITY' ? statsData.equity : statsData.drawdown} margin={{ top: 5, right: 5, bottom: -20, left: -30 }}>
                 <defs>
@@ -96,7 +101,8 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
            </ResponsiveContainer>
         </div>
 
-        <div className="w-full sm:w-1/3 border-t sm:border-t-0 sm:border-l border-zinc-800/50 flex flex-row sm:flex-col justify-around items-center p-3 sm:p-4 bg-black/10">
+        {/* 4. Боковая панель занимает 1 из 3 колонок. */}
+        <div className="col-span-1 border-t sm:border-t-0 sm:border-l border-zinc-800/50 flex flex-row sm:flex-col justify-around items-center p-3 sm:p-4 bg-black/10">
            <div className="relative w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
