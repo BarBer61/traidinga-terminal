@@ -7,15 +7,11 @@ interface Props {
   extended?: boolean;
 }
 
-const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
+// Мы выносим рендеринг графиков в отдельный компонент, чтобы изолировать логику
+const ChartsRenderer: React.FC<{ trades: Trade[] }> = ({ trades }) => {
   const [chartType, setChartType] = useState<'EQUITY' | 'DRAWDOWN'>('EQUITY');
 
+  // Все вычисления теперь здесь, внутри компонента, который рендерится только на клиенте
   const wins = trades.filter(t => t.result === 'WIN').length;
   const losses = trades.filter(t => t.result === 'LOSS').length;
   const winRate = trades.length > 0 ? (wins / trades.length * 100).toFixed(0) : 0;
@@ -58,8 +54,9 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
     { name: 'LOSS', value: losses || 0, color: '#ef4444' }
   ];
 
-  if (!isClient) {
-    return <div className="h-full w-full bg-zinc-900/40 border border-zinc-800 rounded-[2rem]"></div>;
+  // Добавляем явную проверку. Если statsData по какой-то причине не вычислился, мы ничего не рендерим.
+  if (!statsData) {
+    return null;
   }
 
   return (
@@ -131,6 +128,18 @@ const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
       </div>
     </div>
   );
+}
+
+// Основной компонент теперь очень простой
+const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // На первом рендере показываем заглушку, на втором - компонент с графиками
+  return isClient ? <ChartsRenderer trades={trades} /> : <div className="h-full w-full bg-zinc-900/40 border border-zinc-800 rounded-[2rem]"></div>;
 };
 
 export default StatsDashboard;
