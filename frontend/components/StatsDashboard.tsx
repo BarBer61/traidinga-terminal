@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Trade } from '../types';
 import { AreaChart, Area, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 
@@ -8,6 +8,25 @@ interface Props {
 }
 
 const StatsDashboard: React.FC<Props> = ({ trades, extended = false }) => {
+  const [isReady, setIsReady] = useState(false);
+
+  // ЭТО САМОЕ ВАЖНОЕ ИЗМЕНЕНИЕ
+  // Мы ждем не просто рендера, а даем браузеру "вздохнуть"
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 0); // Нулевая задержка отложит выполнение до следующего цикла событий
+
+    return () => clearTimeout(timer); // Очистка таймера
+  }, []);
+
+  // Пока компонент не "готов", мы показываем пустую заглушку с правильными стилями.
+  // Это гарантирует, что у контейнера будет размер, когда график начнет рендериться.
+  if (!isReady) {
+    return <div className="h-full w-full bg-zinc-900/40 border border-zinc-800 rounded-[2rem] shadow-2xl"></div>;
+  }
+
+  // Вся остальная логика вычисляется ТОЛЬКО когда isReady === true
   const [chartType, setChartType] = useState<'EQUITY' | 'DRAWDOWN'>('EQUITY');
 
   const wins = trades.filter(t => t.result === 'WIN').length;
