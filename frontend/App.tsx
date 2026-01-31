@@ -107,8 +107,8 @@ const App: React.FC = () => {
 
   // --- Рендеринг ---
 
+  // Экран логина (без изменений)
   if (!isAuth) {
-    // Экран логина (без изменений)
     return (
       <div className="h-screen w-full bg-black flex items-center justify-center p-4">
         <div className="max-w-xs w-full bg-zinc-900 border border-zinc-800 p-8 rounded-[2rem] shadow-2xl text-center space-y-6 animate-in zoom-in-95 duration-500">
@@ -136,6 +136,7 @@ const App: React.FC = () => {
     );
   }
 
+  // Основной интерфейс приложения
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-black text-zinc-100 font-sans overflow-hidden">
       {/* Sidebar и Mobile Nav (без изменений) */}
@@ -153,14 +154,15 @@ const App: React.FC = () => {
         <NavIcon active={activeView === AppView.SETTINGS} onClick={() => setActiveView(AppView.SETTINGS)} icon="⚙️" title="Настройки" />
       </nav>
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[60px] bg-black/95 backdrop-blur-2xl border-t border-zinc-900 flex items-center justify-around px-4 z-[100] safe-area-bottom">
-        <NavIcon active={activeView === AppView.DASHBOARD} onClick={() => setActiveView(AppView.DASHBOARD)} icon="📊" />
+        <NavIcon active={activeView === AppView.DASHBOARD} onClick={() => setActiveView(AppViev.DASHBOARD)} icon="📊" />
         <NavIcon active={activeView === AppView.JOURNAL} onClick={() => setActiveView(AppView.JOURNAL)} icon="📝" />
         <NavIcon active={activeView === AppView.ANALYTICS} onClick={() => setActiveView(AppView.ANALYTICS)} icon="📈" />
         <NavIcon active={activeView === AppView.AI_CORE} onClick={() => setActiveView(AppView.AI_CORE)} icon="🧠" />
         <NavIcon active={activeView === AppView.SETTINGS} onClick={() => setActiveView(AppView.SETTINGS)} icon="⚙️" />
       </nav>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative h-full">
+      {/* ИЗМЕНЕНИЕ ЗДЕСЬ: Основной контейнер контента */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Header (без изменений) */}
         <header className="h-10 border-b border-zinc-900 bg-black px-4 flex items-center justify-between shrink-0 z-40">
            <div className="flex items-center space-x-3">
@@ -176,11 +178,11 @@ const App: React.FC = () => {
            </div>
         </header>
 
-        {/* Основной контент с передачей данных из хука */}
-        <div className="flex-1 overflow-hidden bg-[#020202] mb-[60px] md:mb-0 relative">
+        {/* ИЗМЕНЕНИЕ ЗДЕСЬ: Контейнер для активного вида */}
+        <main className="flex-1 overflow-y-auto bg-[#020202] pb-[60px] md:pb-0 custom-scrollbar">
           {activeView === AppView.DASHBOARD && (
-            <div className="h-full flex flex-col space-y-2 overflow-y-auto md:overflow-hidden p-2 sm:p-3 custom-scrollbar">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
+            <div className="h-full flex flex-col gap-2 sm:gap-3 p-2 sm:p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
                  <div className="h-[100px] sm:h-[120px] bg-zinc-900/30 border border-zinc-800 rounded-[1.8rem] p-4 flex flex-col justify-between overflow-hidden">
                     <div className="flex justify-between items-center">
                        <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">ПРИБЫЛЬ ДНЯ</span>
@@ -200,24 +202,23 @@ const App: React.FC = () => {
                  <div className="h-[100px] sm:h-[120px]"><SessionControl /></div>
               </div>
 
-              <div className="flex-1 grid grid-cols-12 gap-2 sm:gap-3 overflow-y-auto md:overflow-hidden min-h-0 pb-4 md:pb-0">
-                 <div className="col-span-12 lg:col-span-4 xl:col-span-3 flex flex-col space-y-2 sm:space-y-3 min-h-0">
+              {/* ИЗМЕНЕНИЕ ЗДЕСЬ: Основная сетка дашборда */}
+              <div className="flex-1 grid grid-cols-12 gap-2 sm:gap-3 min-h-[600px] lg:min-h-0">
+                 <div className="col-span-12 lg:col-span-4 xl:col-span-3 flex flex-col gap-2 sm:gap-3">
                     <div className="shrink-0"><RiskCalculator settings={riskSettings} setSettings={setRiskSettings} dailyPnL={dailyPnL} /></div>
-                    <div className="flex-1 min-h-[300px] lg:min-h-0"><NewsPanel events={economicCalendar} isConnected={isConnected} /></div>
+                    <div className="flex-1 min-h-[200px]"><NewsPanel events={economicCalendar} isConnected={isConnected} /></div>
                  </div>
-                 <div className="col-span-12 lg:col-span-8 xl:col-span-6 flex flex-col space-y-2 sm:space-y-3 min-h-0">
+                 <div className="col-span-12 lg:col-span-8 xl:col-span-6 flex flex-col gap-2 sm:gap-3">
                     <div className="h-[200px] sm:h-[230px] shrink-0"><StatsDashboard trades={trades} /></div>
-                    <div className="flex-1 min-h-[400px] lg:min-h-0 bg-zinc-900/10 rounded-[2rem] border border-zinc-800 overflow-hidden flex flex-col shadow-2xl">
-                       <TradeJournal trades={trades} brokers={brokers} strategies={DEFAULT_STRATEGIES} onAddTrade={(t) => setTrades([t, ...trades])} onDeleteTrade={(id) => setTrades(trades.filter(x => x.id !== id))} onAddBroker={addBroker} compact />
-                    </div>
+                    <div className="flex-1 min-h-[300px]"><TradeJournal trades={trades} brokers={brokers} strategies={DEFAULT_STRATEGIES} onAddTrade={(t) => setTrades([t, ...trades])} onDeleteTrade={(id) => setTrades(trades.filter(x => x.id !== id))} onAddBroker={addBroker} compact /></div>
                  </div>
-                 <div className="col-span-12 xl:col-span-3 h-[480px] xl:h-full"><AICore sendMessage={sendMessage} /></div>
+                 <div className="col-span-12 xl:col-span-3 h-full min-h-[480px] xl:min-h-0"><AICore sendMessage={sendMessage} /></div>
               </div>
             </div>
           )}
 
           {activeView !== AppView.DASHBOARD && (
-            <div className="h-full overflow-y-auto custom-scrollbar p-3 sm:p-6 lg:p-10 pb-[100px] md:pb-10">
+            <div className="p-3 sm:p-6 lg:p-10">
               {activeView === AppView.JOURNAL && <TradeJournal trades={trades} brokers={brokers} strategies={DEFAULT_STRATEGIES} onAddTrade={(t) => setTrades([t, ...trades])} onDeleteTrade={(id) => setTrades(trades.filter(x => x.id !== id))} onAddBroker={addBroker} />}
               {activeView === AppView.ANALYTICS && <StatsDashboard trades={trades} extended />}
               {activeView === AppView.CALENDAR && <TraderCalendar trades={trades} />}
@@ -257,7 +258,7 @@ const App: React.FC = () => {
               )}
             </div>
           )}
-        </div>
+        </main>
         
         {/* Компонент для оповещений */}
         <NewsAlert alert={newsAlert} onClose={clearNewsAlert} />
