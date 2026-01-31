@@ -2,7 +2,9 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}", // <-- ВАЖНОЕ ИЗМЕНЕНИЕ
+    // Эта строка будет сканировать все файлы .js, .ts, .jsx, .tsx
+    // прямо в корневой папке frontend и во всех ее подпапках.
+    "./**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {},
