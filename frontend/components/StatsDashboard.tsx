@@ -7,20 +7,11 @@ interface Props {
 }
 
 const StatsDashboard: React.FC<Props> = ({ trades }) => {
+  // 1. ВСЕ ХУКИ ВЫНЕСЕНЫ НАВЕРХ
   const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsReady(true), 50); // Дадим чуть больше времени на всякий случай
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Если не готово, показываем заглушку. Это важно.
-  if (!isReady) {
-    return <div className="h-full w-full bg-zinc-900/40 border border-zinc-800 rounded-[2rem]"></div>;
-  }
-
   const [chartType, setChartType] = useState<'EQUITY' | 'DRAWDOWN'>('EQUITY');
 
+  // 2. ВСЕ ВЫЧИСЛЕНИЯ ТОЖЕ НАВЕРХУ
   const wins = trades.filter(t => t.result === 'WIN').length;
   const losses = trades.filter(t => t.result === 'LOSS').length;
   const winRate = trades.length > 0 ? (wins / trades.length * 100).toFixed(0) : 0;
@@ -63,10 +54,21 @@ const StatsDashboard: React.FC<Props> = ({ trades }) => {
     { name: 'LOSS', value: losses || 0, color: '#ef4444' }
   ];
 
+  // 3. НАШ РАБОЧИЙ ТРЮК С ЗАДЕРЖКОЙ
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 4. УСЛОВИЕ ВЛИЯЕТ ТОЛЬКО НА JSX
+  if (!isReady) {
+    return <div className="h-full w-full bg-zinc-900/40 border border-zinc-800 rounded-[2rem]"></div>;
+  }
+
+  // 5. ВОЗВРАЩАЕМ ПОЛНЫЙ КОМПОНЕНТ С ФИКСИРОВАННЫМИ РАЗМЕРАМИ
   return (
     <div className={`h-full grid grid-rows-[auto_1fr] bg-zinc-900/40 border border-zinc-800 rounded-[2rem] overflow-hidden shadow-2xl`}>
       <div className="p-3 sm:p-4 flex justify-between items-center bg-zinc-900/60 border-b border-zinc-900">
-        {/* ... шапка остается без изменений ... */}
         <div className="flex space-x-3 sm:space-x-4">
            <button onClick={() => setChartType('EQUITY')} className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${chartType === 'EQUITY' ? 'text-indigo-500 underline underline-offset-4' : 'text-zinc-600 hover:text-zinc-400'}`}>ЭКВИТИ</button>
            <button onClick={() => setChartType('DRAWDOWN')} className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${chartType === 'DRAWDOWN' ? 'text-red-500 underline underline-offset-4' : 'text-zinc-600 hover:text-zinc-400'}`}>ПРОСАДКА</button>
@@ -83,11 +85,10 @@ const StatsDashboard: React.FC<Props> = ({ trades }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 min-h-0">
-        {/* ГЛАВНОЕ ИЗМЕНЕНИЕ ЗДЕСЬ */}
         <div className="col-span-1 sm:col-span-2 p-3 min-h-0 min-w-0 flex items-center justify-center">
            <AreaChart 
-              width={400} // Жесткий размер
-              height={200} // Жесткий размер
+              width={400} 
+              height={200} 
               data={chartType === 'EQUITY' ? statsData.equity : statsData.drawdown} 
               margin={{ top: 5, right: 5, bottom: 5, left: -30 }}
             >
@@ -109,7 +110,6 @@ const StatsDashboard: React.FC<Props> = ({ trades }) => {
         </div>
 
         <div className="col-span-1 border-t sm:border-t-0 sm:border-l border-zinc-800/50 flex flex-row sm:flex-col justify-around items-center p-3 sm:p-4 bg-black/10">
-           {/* И ЗДЕСЬ */}
            <div className="relative">
               <PieChart width={100} height={100}>
                 <Pie data={pieData} innerRadius="70%" outerRadius="100%" paddingAngle={4} dataKey="value" stroke="none">
@@ -123,7 +123,6 @@ const StatsDashboard: React.FC<Props> = ({ trades }) => {
            </div>
            
            <div className="flex flex-col sm:flex-row sm:gap-4 text-center">
-              {/* ... остальная статистика ... */}
               <div className="flex flex-col mb-2 sm:mb-0">
                 <span className="text-[6px] sm:text-[7px] font-black text-zinc-600 uppercase tracking-widest">MAX DD</span>
                 <span className="text-[10px] sm:text-[11px] font-black text-red-500">{statsData.maxDD.toFixed(1)}%</span>
