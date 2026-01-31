@@ -1,3 +1,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* --- Ваши кастомные стили --- */
+
+/* Базовые стили для всего приложения */
+body, #root {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: #000;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Поддержка вариативных шрифтов для лучшей производительности */
+@supports (font-variation-settings: normal) {
+  body, #root {
+    font-family: 'Inter var', sans-serif;
+  }
+}
+
+/* "Резиновый" контейнер, который занимает всю высоту экрана,
+   включая исправления для мобильных браузеров (dvh) */
+.rubber-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh; 
+}
+
+/* Кастомный скроллбар для Webkit браузеров (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46; /* zinc-700 */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b; /* zinc-600 */
+}
